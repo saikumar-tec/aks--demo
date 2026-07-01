@@ -12,7 +12,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
+      - name: List Repository Files
+        run: |
+          pwd
+           ls -la
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
