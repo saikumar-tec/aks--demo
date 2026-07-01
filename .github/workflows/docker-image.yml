@@ -1,0 +1,51 @@
+name: Build Push Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Packages
+        run: npm install
+
+      - name: Build React App
+        run: npm run build
+
+      - name: Login to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build Docker Image
+        run: |
+          docker build -t myimage ./src
+       - name: docker tag
+        run: |
+          docker tag myimage  "${{ secrets.DOCKER_USERNAME }}"/myimage:v1
+
+      - name: Push Image
+        run: |
+          docker push -d myimage "${{ secrets.DOCKER_USERNAME }}/myimage:v1
+
+       - name: Run Trivy vulnerability scanner
+         uses: aquasecurity/trivy-action@v0.36.0
+         with:
+          scan-type: 'image'
+          scan-ref: 'your-docker-image:latest'
+          format: 'table'
+          exit-code: '1' # Fails the pipeline step if vulnerabilities are found
+          severity: 'CRITICAL,HIGH'
+
