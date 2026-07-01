@@ -6,26 +6,40 @@ on:
       - main
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  build-test:
+    runs-on: self-hosted
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: List Repository Files
+
+      - name: Verify Repository
         run: |
           pwd
-           ls -la
-      - name: Setup Node
+          ls -la
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
-      - name: Install Packages
-        run: npm install
+      - name: Install Dependencies
+        run: npm ci
 
-      - name: Build React App
+      - name: Build React Application
         run: npm run build
+
+      # Uncomment if your project has tests
+      # - name: Run Tests
+      #   run: npm test -- --watchAll=false
+
+  docker:
+    needs: build-test
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Login to Docker Hub
         run: |
@@ -33,21 +47,44 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t myimage .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/myimage:${{ github.run_number }} .
 
-      - name: Docker Tag
+      - name: Push Docker Image
         run: |
-          docker tag myimage ${{ secrets.DOCKER_USERNAME }}/myimage:v1
+          docker push ${{ secrets.DOCKER_USERNAME }}/myimage:${{ github.run_number }}
 
-      - name: Push Image
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/myimage:v1
+  security:
+    needs: docker
+    runs-on: self-hosted
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.36.0
+    steps:
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           scan-type: image
-          scan-ref: ${{ secrets.DOCKER_USERNAME }}/myimage:v1
+          scan-ref: ${{ secrets.DOCKER_USERNAME }}/myimage:${{ github.run_number }}
           format: table
           exit-code: "1"
           severity: CRITICAL,HIGH
+
+  deploy:
+    needs: security
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl set image deployment/react-app \
+          react-app=${{ secrets.DOCKER_USERNAME }}/myimage:${{ github.run_number }}
+
+      - name: Wait for Rollout
+        run: |
+          kubectl rollout status deployment/react-app
+
+      - name: Verify Pods
+        run: |
+          kubectl get pods
+
+      - name: Verify Services
+        run: |
+          kubectl get svc
