@@ -10,7 +10,6 @@ jobs:
     runs-on: self-hosted
 
     steps:
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -31,21 +30,21 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t myimage ./src
-       - name: docker tag
+          docker build -t myimage .
+
+      - name: Docker Tag
         run: |
-          docker tag myimage  "${{ secrets.DOCKER_USERNAME }}"/myimage:v1
+          docker tag myimage ${{ secrets.DOCKER_USERNAME }}/myimage:v1
 
       - name: Push Image
         run: |
-          docker push -d myimage "${{ secrets.DOCKER_USERNAME }}/myimage:v1
+          docker push ${{ secrets.DOCKER_USERNAME }}/myimage:v1
 
-       - name: Run Trivy vulnerability scanner
-         uses: aquasecurity/trivy-action@v0.36.0
-         with:
-          scan-type: 'image'
-          scan-ref: 'your-docker-image:latest'
-          format: 'table'
-          exit-code: '1' # Fails the pipeline step if vulnerabilities are found
-          severity: 'CRITICAL,HIGH'
-
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          scan-ref: ${{ secrets.DOCKER_USERNAME }}/myimage:v1
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
